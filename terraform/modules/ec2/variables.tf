@@ -55,3 +55,9 @@ variable "tags" {
   description = "Tags to apply to the instance"
   default     = {}
 }
+
+variable "ami_id" {
+  type        = string
+  description = "Override AMI ID. If empty, the latest Ubuntu 22.04 LTS AMI will be used."
+  default     = ""
+}

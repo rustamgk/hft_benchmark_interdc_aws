@@ -55,7 +55,7 @@ module "singapore_vpc" {
   vpc_cidr         = "10.0.0.0/16"
   subnet_cidr      = "10.0.1.0/24"
   availability_zone = "ap-southeast-1a"
-  create_default_igw_route = false  # Private SG subnet; no IGW route
+  create_default_igw_route = true   # Enable IGW route to support baseline public instance
 
   tags = {
     Project = "hft-benchmark"
@@ -75,6 +75,8 @@ module "singapore_ec2" {
   security_group_id   = module.singapore_vpc.security_group_id
   # Use Terraform-managed key pair
   key_name            = aws_key_pair.singapore.key_name
+  # Pin AMI to current instance to avoid replacement due to automatic latest AMI updates
+  ami_id              = "ami-0827b3068f1548bf6"
   user_data           = templatefile("${path.module}/user-data/ipip_client.sh.tmpl", {
     server_private_ip  = module.tokyo_bastion.private_ip
   })
@@ -139,6 +141,33 @@ module "tokyo_bastion" {
   }
 }
 
+# Singapore Baseline Host (public, direct egress)
+module "singapore_baseline_ec2" {
+  source   = "./modules/ec2"
+  providers = {
+    aws = aws.singapore
+  }
+
+  instance_name       = "singapore-baseline"
+  instance_type       = "t3.small"
+  subnet_id           = module.singapore_vpc.subnet_id
+  security_group_id   = module.singapore_vpc.security_group_id
+  key_name            = aws_key_pair.singapore.key_name
+  # No user data for overlay; plain host with public IP
+  user_data           = "#!/bin/bash\nset -e\napt-get update -y || true\n"
+
+  source_dest_check   = true
+  associate_public_ip = true
+
+  depends_on = [module.singapore_vpc, aws_key_pair.singapore]
+
+  tags = {
+    Project = "hft-benchmark"
+    Role    = "baseline"
+    Region  = "singapore"
+  }
+}
+
 # Stable egress IP for Tokyo WireGuard NAT (bastion)
 resource "aws_eip" "tokyo_bastion" {
   provider = aws.tokyo
@@ -183,6 +212,16 @@ output "singapore_instance_public_ip" {
 output "singapore_instance_private_ip" {
   value       = module.singapore_ec2.private_ip
   description = "Private IP of Singapore EC2 instance"
+}
+
+output "singapore_baseline_public_ip" {
+  value       = try(module.singapore_baseline_ec2.public_ip, null)
+  description = "Public IP of Singapore baseline EC2 instance"
+}
+
+output "singapore_baseline_private_ip" {
+  value       = try(module.singapore_baseline_ec2.private_ip, null)
+  description = "Private IP of Singapore baseline EC2 instance"
 }
 
 
