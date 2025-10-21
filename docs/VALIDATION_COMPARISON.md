@@ -4,6 +4,14 @@ This document captures the current “via-Tokyo” results and provides a placeh
 
 Date: 2025-10-21
 
+## Quick comparison (p50/p95)
+
+| Scenario                | Egress         | Egress IP       | P50 (ms) | P95 (ms) | Run folder                                    |
+|-------------------------|----------------|-----------------|----------|----------|-----------------------------------------------|
+| Via Tokyo (unpinned)    | Tokyo, JP      | 35.76.36.216    | 541.67   | 678.56   | `validation/results/20251021-191127/`         |
+| Via Tokyo (pinned POP)  | Tokyo, JP      | 35.76.36.216    | 270.43   | 283.01   | `validation/results/20251021-225359/`         |
+| Direct SG baseline      | Singapore, SG  | 54.254.160.207  | 130.30   | 219.31   | `validation/results/20251021-215657-baseline/`|
+
 ## Scenario A — Via Tokyo (IPIP overlay + EC2 NAT)
 
 - Source host: Singapore client (private), default route via tun0
@@ -43,13 +51,53 @@ Latency statistics (100 HTTPS requests to api.binance.com)
 - P99: 308.56 ms
 - Max: 308.56 ms
 
+Path and geolocation
+- Path: See `validation/results/20251021-215657-baseline/03-path.log`
+- Geolocation: City=Singapore, Country=SG (see `geolocation.json`)
+
+## Scenario C — Via Tokyo (Pinned to Tokyo POP)
+
+- Source host: Singapore client (private), default route via tun0
+- Path: Singapore → VPC peering → Tokyo bastion (NAT) → Internet
+- POP pinning: api.binance.com resolved on Tokyo and pinned via `curl --resolve`
+- Egress IP (Tokyo EIP): 35.76.36.216
+- Geolocation: Tokyo, JP
+- Run folder: `validation/results/20251021-225359/`
+
+Latency statistics (100 HTTPS requests to api.binance.com)
+- Min: 265.32 ms
+- Median (P50): 270.43 ms
+- Mean: 271.39 ms
+- P95: 283.01 ms
+- P99: 295.99 ms
+- Max: 295.99 ms
+
+Overlay RTT (Singapore → Tokyo tunnel IP)
+- 10 pings to 192.168.250.1: min/avg/max/mdev = 68.609 / 68.659 / 68.718 / 0.027 ms
+- Source: `validation/results/20251021-225359/02a-overlay-rtt.log`
+
 ## Comparison summary
 
-- Egress location: Via Tokyo = Tokyo, JP (35.76.36.216); Baseline = Singapore, SG (54.254.160.207)
-- P50 delta (ms): 130.30 vs 541.67 → Δ = -411.37 ms (baseline faster)
-- P95 delta (ms): 219.31 vs 678.56 → Δ = -459.25 ms (baseline faster)
+- Egress locations:
+	- Via Tokyo (unpinned): Tokyo, JP (35.76.36.216)
+	- Via Tokyo (pinned): Tokyo, JP (35.76.36.216)
+	- Baseline: Singapore, SG (54.254.160.207)
+
+- Baseline vs Via Tokyo (unpinned):
+	- P50: 130.30 vs 541.67 → Δ = -411.37 ms (baseline faster)
+	- P95: 219.31 vs 678.56 → Δ = -459.25 ms (baseline faster)
+
+- Baseline vs Via Tokyo (pinned):
+	- P50: 130.30 vs 270.43 → Δ = +140.13 ms (via Tokyo pinned slower, expected extra SG↔TYO leg)
+	- P95: 219.31 vs 283.01 → Δ = +63.70 ms
+
+- Via Tokyo improvement from pinning POP:
+	- P50: 541.67 → 270.43 (Δ = -271.24 ms)
+	- P95: 678.56 → 283.01 (Δ = -395.55 ms)
+
 - Qualitative path differences:
 	- Via Tokyo adds the Singapore↔Tokyo leg and NAT on the Tokyo bastion
+	- POP pinning ensures the Tokyo egress IP reaches a Tokyo CloudFront edge, removing the “Tokyo→Singapore POP” mismatch
 	- Baseline goes direct from Singapore to the Internet
 
 ## Interpretation
