@@ -149,7 +149,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
 # Step 1: Copy validation scripts to Singapore
 echo "[1/6] Copying validation scripts to Singapore instance..."
 scp -i "$SSH_KEY" -r -o StrictHostKeyChecking=no -o ConnectTimeout=15 $SCP_JUMP_OPT \
-  "$SCRIPT_DIR"/{01-preflight.sh,02-baseline-latency.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
+  "$SCRIPT_DIR"/{01-preflight.sh,02a-overlay-rtt.sh,02-baseline-latency.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
   "$SSH_TARGET:$REMOTE_VALIDATION_DIR/"
 echo "✓ Scripts copied successfully"
 echo ""
@@ -161,9 +161,32 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
 echo "✓ Preflight checks complete"
 echo ""
 
-echo "[3/6] Measuring baseline latency from Singapore..."
+echo "[2.5/6] Measuring overlay RTT (Singapore -> Tokyo tun IP)..."
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
-  "$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
+  "$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02a-overlay-rtt.sh 192.168.250.1 $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02a-overlay-rtt.log"
+echo "✓ Overlay RTT measurement complete"
+echo ""
+
+echo "[3/6] Measuring baseline latency from Singapore..."
+TOKYO_CF_IP=""
+if [ "${PIN_TOKYO_POP:-0}" = "1" ] && [ -n "$BASTION_SSH_HOST" ]; then
+  echo "Resolving api.binance.com on bastion to pin Tokyo POP..."
+  TOKYO_CF_IP=$(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${SSH_USER}@${BASTION_SSH_HOST}" \
+    "dig +short api.binance.com | tail -n1" 2>/dev/null || echo "")
+  if [ -n "$TOKYO_CF_IP" ]; then
+    echo "Using Tokyo POP IP: $TOKYO_CF_IP"
+  else
+    echo "Warning: Could not resolve Tokyo POP IP; proceeding without pinning."
+  fi
+fi
+
+if [ -n "$TOKYO_CF_IP" ]; then
+  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
+    "RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
+else
+  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
+    "$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
+fi
 echo "✓ Latency measurement complete"
 echo ""
 
