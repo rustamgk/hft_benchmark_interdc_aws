@@ -61,7 +61,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_TARGET" \
 # Step 1: Copy validation scripts
 echo "[1/6] Copying validation scripts to Singapore baseline..."
 scp -i "$SSH_KEY" -r -o StrictHostKeyChecking=no -o ConnectTimeout=15 \
-  "$SCRIPT_DIR"/{01-preflight.sh,02-baseline-latency.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
+  "$SCRIPT_DIR"/{01-preflight.sh,02-baseline-latency.sh,02b-latency-keepalive.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
   "$SSH_TARGET:$REMOTE_VALIDATION_DIR/"
 echo "✓ Scripts copied successfully"
 echo ""
@@ -74,10 +74,22 @@ echo "✓ Preflight checks complete"
 echo ""
 
 echo "[3/6] Measuring baseline latency from Singapore (direct egress)..."
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_TARGET" \
-  "bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
+BASE_CMD="bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR"
+if [ "${TLS13:-0}" = "1" ]; then BASE_CMD="TLS13=1 $BASE_CMD"; fi
+if [ "${BREAKDOWN:-0}" = "1" ]; then BASE_CMD="BREAKDOWN=1 $BASE_CMD"; fi
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_TARGET" "$BASE_CMD" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
 echo "✓ Latency measurement complete"
 echo ""
+
+# Optional keepalive latency phase
+if [ "${KEEPALIVE:-0}" = "1" ]; then
+  echo "[3.5/6] Measuring baseline latency with connection reuse (keepalive)..."
+  KEEP_CMD="bash $REMOTE_VALIDATION_DIR/02b-latency-keepalive.sh $REMOTE_VALIDATION_DIR"
+  if [ "${TLS13:-0}" = "1" ]; then KEEP_CMD="TLS13=1 $KEEP_CMD"; fi
+  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_TARGET" "$KEEP_CMD" 2>&1 | tee "$RESULTS_DIR/02b-latency-keepalive.log"
+  echo "✓ Keepalive latency measurement complete"
+  echo ""
+fi
 
 echo "[4/6] Verifying network path from Singapore baseline..."
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_TARGET" \

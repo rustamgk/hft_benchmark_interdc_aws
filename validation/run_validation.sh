@@ -149,7 +149,7 @@ ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
 # Step 1: Copy validation scripts to Singapore
 echo "[1/6] Copying validation scripts to Singapore instance..."
 scp -i "$SSH_KEY" -r -o StrictHostKeyChecking=no -o ConnectTimeout=15 $SCP_JUMP_OPT \
-  "$SCRIPT_DIR"/{01-preflight.sh,02a-overlay-rtt.sh,02-baseline-latency.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
+  "$SCRIPT_DIR"/{01-preflight.sh,02a-overlay-rtt.sh,02-baseline-latency.sh,02b-latency-keepalive.sh,03-path-verification.sh,04-geolocation.sh,06-generate-report.sh,analyze_latency.py} \
   "$SSH_TARGET:$REMOTE_VALIDATION_DIR/"
 echo "✓ Scripts copied successfully"
 echo ""
@@ -180,15 +180,30 @@ if [ "${PIN_TOKYO_POP:-0}" = "1" ] && [ -n "$BASTION_SSH_HOST" ]; then
   fi
 fi
 
+BASE_CMD="$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR"
 if [ -n "$TOKYO_CF_IP" ]; then
-  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
-    "RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
-else
-  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
-    "$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02-baseline-latency.sh $REMOTE_VALIDATION_DIR" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
+  BASE_CMD="RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $BASE_CMD"
 fi
+# Optional TLS 1.3 and breakdown
+if [ "${TLS13:-0}" = "1" ]; then BASE_CMD="TLS13=1 $BASE_CMD"; fi
+if [ "${BREAKDOWN:-0}" = "1" ]; then BASE_CMD="BREAKDOWN=1 $BASE_CMD"; fi
+
+ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" "$BASE_CMD" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
 echo "✓ Latency measurement complete"
 echo ""
+
+# Optional keepalive latency phase
+if [ "${KEEPALIVE:-0}" = "1" ]; then
+  echo "[3.5/6] Measuring latency with connection reuse (keepalive)..."
+  KEEP_CMD="$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02b-latency-keepalive.sh $REMOTE_VALIDATION_DIR"
+  if [ -n "$TOKYO_CF_IP" ]; then
+    KEEP_CMD="RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $KEEP_CMD"
+  fi
+  if [ "${TLS13:-0}" = "1" ]; then KEEP_CMD="TLS13=1 $KEEP_CMD"; fi
+  ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" "$KEEP_CMD" 2>&1 | tee "$RESULTS_DIR/02b-latency-keepalive.log"
+  echo "✓ Keepalive latency measurement complete"
+  echo ""
+fi
 
 echo "[4/6] Verifying network path from Singapore..."
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" \
