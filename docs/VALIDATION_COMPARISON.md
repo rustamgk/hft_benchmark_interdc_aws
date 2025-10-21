@@ -2,7 +2,20 @@
 
 This document captures the current “via-Tokyo” results and provides a placeholder to add the direct-from-Singapore baseline for an apples-to-apples comparison.
 
+Note: You can optionally run the keepalive latency phase (connection reuse) by setting KEEPALIVE=1 when invoking the validation runners. When present, keepalive statistics will be included in the per-run `VALIDATION_REPORT.md`.
+
 Date: 2025-10-21
+
+## Quick comparison (p50/p95) — 2025-10-22
+
+| Scenario               | Egress        | Egress IP      | P50 (ms) | P95 (ms) | Run folder                                   |
+|------------------------|---------------|----------------|----------|----------|----------------------------------------------|
+| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 270.23   | 283.97   | `validation/results/20251022-004612/`        |
+| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 132.52   | 266.66   | `validation/results/20251022-005628-baseline/` |
+
+Notes (2025-10-22)
+- Delta (Via Tokyo pinned vs Baseline): P50 +137.71 ms, P95 +17.31 ms — consistent with added SG↔TYO leg; POP pinning maintained Tokyo edge.
+- Egress verification: Tokyo run geolocates to Tokyo (35.76.36.216); Baseline run geolocates to Singapore (54.254.160.207).
 
 ## Quick comparison (p50/p95)
 
