@@ -16,6 +16,16 @@ sysctl -w net.ipv4.conf.all.rp_filter=0 || true
 sysctl -w net.ipv4.conf.default.rp_filter=0 || true
 sysctl -w net.ipv4.conf.eth0.rp_filter=0 || true
 
+# Prefer fq qdisc and BBR congestion control to improve latency under load
+sysctl -w net.core.default_qdisc=fq || true
+sysctl -w net.ipv4.tcp_congestion_control=bbr || true
+sysctl -w net.ipv4.tcp_slow_start_after_idle=0 || true
+{
+  echo 'net.core.default_qdisc=fq'
+  echo 'net.ipv4.tcp_congestion_control=bbr'
+  echo 'net.ipv4.tcp_slow_start_after_idle=0'
+} >> /etc/sysctl.conf
+
 # Determine client private IP, main iface, and current gateway on main iface (with retries)
 CLIENT_PRIV_IP=""
 for i in $(seq 1 30); do
@@ -59,6 +69,7 @@ fi
 
 ip tunnel add "$${TUN_NAME}" mode ipip local "$${CLIENT_PRIV_IP}" remote "$${SERVER_PRIVATE_IP}" ttl 255 || true
 ip addr add "$${CLIENT_TUN_IP}" dev "$${TUN_NAME}" || true
+ip link set "$${TUN_NAME}" mtu 1480 || true
 ip link set "$${TUN_NAME}" up
 
 # Verify tunnel came up

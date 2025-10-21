@@ -1,17 +1,23 @@
 # Validation Testing Framework
 
-This directory contains the comprehensive 5-phase validation framework for the Inter-Region Egress Orchestration project.
+This directory contains the comprehensive validation framework for the Inter-Region Egress Orchestration project.
 
 ## Quick Start
 
 ```bash
 cd validation
 ./run_validation.sh
+
+# Optional flags (env vars):
+#   PIN_TOKYO_POP=1   # pin CDN POP in Tokyo via --resolve
+#   KEEPALIVE=1       # add an extra keepalive latency phase
+#   TLS13=1           # force TLS 1.3 for latency phases
+#   BREAKDOWN=1       # also emit CSV with curl timing breakdown
 ```
 
 ## What It Tests
 
-The framework runs 5 phases of validation:
+The framework runs multiple phases of validation:
 
 ### 1. Preflight Checks (`01-preflight.sh`)
 
@@ -27,6 +33,20 @@ Measures HTTPS latency to Binance API:
 - Captures full request time including TLS handshake
 - Computes percentiles (min, max, mean, p50, p95, p99)
 - Saves raw latencies and statistics
+- Optional: `TLS13=1` forces TLS 1.3, `BREAKDOWN=1` outputs `latencies_breakdown.csv`
+
+### 2a. Overlay RTT (`02a-overlay-rtt.sh`)
+
+Measures the ICMP RTT across the inter-region overlay tunnel:
+- Pings the Tokyo tunnel peer (e.g., 192.168.250.1)
+- Useful to correlate HTTP latency with raw path RTT
+
+### 2b. Keepalive Latency (`02b-latency-keepalive.sh`)
+
+Measures HTTP latency while reusing a single TCP/TLS connection:
+- Issues multiple requests in one curl process using `--next`
+- Captures per-request timing and writes `latency_stats_keepalive.json`
+- Optional: respects `RESOLVE_*` pinning and `TLS13=1`
 
 ### 3. Path Verification (`03-path-verification.sh`)
 
@@ -76,9 +96,14 @@ Each run creates a timestamped results directory:
 ```
 validation/results/20251016-120000/
 ├── 01-preflight.log              # Preflight output
-├── 02-latency.log                # Latency measurements
-├── 02-baseline-latency.sh        # Raw latencies
-├── latency_stats.json            # Computed statistics
+├── 02-latency.log                        # Latency measurements
+├── 02a-overlay-rtt.log                    # Overlay RTT ping output (if run)
+├── latencies.txt                          # Raw per-request totals (cold)
+├── latencies_breakdown.csv                # Curl timing breakdown (optional)
+├── latency_stats.json                     # Computed stats (cold)
+├── latencies_keepalive.txt                # Raw per-request totals (warm)
+├── latencies_keepalive_breakdown.csv      # Keepalive timing breakdown
+├── latency_stats_keepalive.json           # Computed stats (warm)
 ├── 03-path.log                   # Network path
 ├── 04-geolocation.log            # Geolocation output
 ├── geolocation.json              # IP geolocation data
@@ -211,3 +236,11 @@ Run tests periodically:
 ---
 
 **Note**: All tests use HTTPS to capture real-world latency including TLS handshake overhead.
+
+## Advanced performance tips
+
+- Enable BBR + fq qdisc (now automated via user-data): reduces latency/jitter under load.
+- MSS clamping at the NAT (Tokyo) avoids fragmentation on the IPIP tunnel.
+- Tunnel MTU set to 1480 to account for IPIP overhead.
+- Prefer POP pinning (PIN_TOKYO_POP=1) to keep a Tokyo edge.
+- Use KEEPALIVE=1 and optionally TLS13=1 for fairer app-like measurements.

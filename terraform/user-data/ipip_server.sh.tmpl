@@ -6,9 +6,19 @@ echo "=== Tokyo IPIP Server (NAT egress) setup ==="
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y netcat-openbsd iproute2 iptables-persistent netfilter-persistent curl
 
-# Enable forwarding
+# Enable forwarding and low-latency TCP settings
 sysctl -w net.ipv4.ip_forward=1
 echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+
+# Prefer fq qdisc and BBR congestion control to improve latency under load
+sysctl -w net.core.default_qdisc=fq || true
+sysctl -w net.ipv4.tcp_congestion_control=bbr || true
+sysctl -w net.ipv4.tcp_slow_start_after_idle=0 || true
+{
+  echo 'net.core.default_qdisc=fq'
+  echo 'net.ipv4.tcp_congestion_control=bbr'
+  echo 'net.ipv4.tcp_slow_start_after_idle=0'
+} >> /etc/sysctl.conf
 
 # Ensure IPIP kernel module is available
 modprobe ipip || true
@@ -61,6 +71,7 @@ CLIENT_TUN_IP=192.168.250.2/30
 
 ip tunnel add "$TUN_NAME" mode ipip local "$SERVER_PRIV_IP" remote "$CLIENT_PRIV_IP" ttl 255 || true
 ip addr add "$SERVER_TUN_IP" dev "$TUN_NAME" || true
+ip link set "$TUN_NAME" mtu 1480 || true
 ip link set "$TUN_NAME" up
 
 # Verify tunnel came up
@@ -79,6 +90,9 @@ iptables -t nat -A POSTROUTING -o "$PRIMARY_IFACE" -j MASQUERADE
 # Allow forwarding between tunnel and internet interface
 iptables -A FORWARD -i tun0 -o "$PRIMARY_IFACE" -j ACCEPT
 iptables -A FORWARD -i "$PRIMARY_IFACE" -o tun0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Clamp MSS to PMTU to avoid fragmentation over the IPIP tunnel
+iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 
 # Relax reverse path filtering to avoid drops on tunneled flows
 sysctl -w net.ipv4.conf.all.rp_filter=0
