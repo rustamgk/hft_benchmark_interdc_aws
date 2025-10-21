@@ -1,0 +1,7 @@
+Checking connectivity and prerequisites...
+Tool 'curl': ✓
+Tool 'jq': ✓
+Tool 'python3': ✓
+DNS resolution (api.binance.com): ✓
+Internet connectivity (curl): ✓
+Preflight checks passed!

@@ -1,0 +1,22 @@
+Measuring latency (100 requests)...
+  Completed: 10/100
+  Completed: 20/100
+  Completed: 30/100
+  Completed: 40/100
+  Completed: 50/100
+  Completed: 60/100
+  Completed: 70/100
+  Completed: 80/100
+  Completed: 90/100
+  Completed: 100/100
+Latency measurements saved to: /tmp/hft-validation-1761066690/latencies.txt
+Statistics:
+{
+    "count": 100,
+    "min": 531.78,
+    "max": 795.21,
+    "mean": 555.52,
+    "median": 541.67,
+    "p95": 678.56,
+    "p99": 795.21
+}
