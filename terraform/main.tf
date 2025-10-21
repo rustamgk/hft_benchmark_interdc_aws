@@ -111,32 +111,6 @@ module "tokyo_vpc" {
   }
 }
 
-# Allocate Elastic IP for Tokyo NAT Gateway
-resource "aws_eip" "tokyo_nat" {
-  provider = aws.tokyo
-  domain   = "vpc"
-  depends_on = [module.tokyo_vpc.internet_gateway_id]
-
-  tags = {
-    Name    = "tokyo-nat-eip"
-    Project = "hft-benchmark"
-  }
-}
-
-# Create NAT Gateway in Tokyo
-resource "aws_nat_gateway" "tokyo" {
-  provider      = aws.tokyo
-  allocation_id = aws_eip.tokyo_nat.id
-  subnet_id     = module.tokyo_vpc.subnet_id
-
-  depends_on = [module.tokyo_vpc.internet_gateway_id]
-
-  tags = {
-    Name    = "tokyo-nat-gateway"
-    Project = "hft-benchmark"
-  }
-}
-
 # Bastion Host in Tokyo for SSH access to Singapore
 module "tokyo_bastion" {
   source   = "./modules/ec2"
@@ -211,16 +185,6 @@ output "singapore_instance_private_ip" {
   description = "Private IP of Singapore EC2 instance"
 }
 
-
-output "tokyo_nat_gateway_id" {
-  value       = aws_nat_gateway.tokyo.id
-  description = "Tokyo NAT Gateway ID"
-}
-
-output "tokyo_nat_elastic_ip" {
-  value       = aws_eip.tokyo_nat.public_ip
-  description = "Elastic IP for Tokyo NAT Gateway (egress IP)"
-}
 
 output "peering_connection_id" {
   value       = module.peering.peering_connection_id
