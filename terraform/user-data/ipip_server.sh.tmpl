@@ -1,0 +1,89 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Tokyo IPIP Server (NAT egress) setup ==="
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y netcat-openbsd iproute2 iptables-persistent netfilter-persistent curl
+
+# Enable forwarding
+sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+
+# Ensure IPIP kernel module is available
+modprobe ipip || true
+
+# Discover local private IP and primary iface (robust)
+SERVER_PRIV_IP=""
+for i in $(seq 1 30); do
+  SERVER_PRIV_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 || true)
+  if [ -n "$${SERVER_PRIV_IP}" ]; then break; fi
+  echo "[$i/30] Waiting for IMDS local-ipv4 on server..."
+  sleep 1
+done
+if [ -z "$${SERVER_PRIV_IP}" ]; then
+  echo "Failed to retrieve SERVER_PRIV_IP from IMDS; aborting" >&2
+  exit 1
+fi
+
+# Wait for default route to determine primary iface
+for i in $(seq 1 30); do
+  if ip route | grep -q '^default '; then break; fi
+  echo "[$i/30] Waiting for default route on server..."
+  sleep 1
+done
+PRIMARY_IFACE=$(ip route | awk '/^default / {print $5; exit}')
+
+# Receive client private IP from Singapore over peering (port 10001)
+echo "Waiting for client private IP on port 10001..."
+CLIENT_PRIV_IP=""
+for i in $(seq 1 120); do
+  TMP=$(mktemp)
+  timeout 30 nc -l -p 10001 -w 30 > "$TMP" || true
+  CLIENT_PRIV_IP=$(tr -d '\r\n' < "$TMP" 2>/dev/null || true)
+  rm -f "$TMP"
+  if [ -n "$${CLIENT_PRIV_IP}" ]; then
+    echo "Client private IP: $${CLIENT_PRIV_IP}"
+    break
+  fi
+  echo "[$i/120] Still waiting for client private IP..."
+  sleep 2
+done
+if [ -z "$${CLIENT_PRIV_IP}" ]; then
+  echo "Client private IP not received after multiple attempts; exiting" >&2
+  exit 1
+fi
+
+# Configure IPIP tunnel
+TUN_NAME=tun0
+SERVER_TUN_IP=192.168.250.1/30
+CLIENT_TUN_IP=192.168.250.2/30
+
+ip tunnel add "$TUN_NAME" mode ipip local "$SERVER_PRIV_IP" remote "$CLIENT_PRIV_IP" ttl 255 || true
+ip addr add "$SERVER_TUN_IP" dev "$TUN_NAME" || true
+ip link set "$TUN_NAME" up
+
+# Verify tunnel came up
+if ! ip link show "$TUN_NAME" >/dev/null 2>&1; then
+  echo "Tunnel $TUN_NAME not present after creation attempts" >&2
+  exit 1
+fi
+
+# NAT for internet egress only (avoid NAT for RFC1918/link-local)
+iptables -t nat -A POSTROUTING -d 10.0.0.0/8 -j RETURN
+iptables -t nat -A POSTROUTING -d 172.16.0.0/12 -j RETURN
+iptables -t nat -A POSTROUTING -d 192.168.0.0/16 -j RETURN
+iptables -t nat -A POSTROUTING -d 169.254.0.0/16 -j RETURN
+iptables -t nat -A POSTROUTING -o "$PRIMARY_IFACE" -j MASQUERADE
+
+# Allow forwarding between tunnel and internet interface
+iptables -A FORWARD -i tun0 -o "$PRIMARY_IFACE" -j ACCEPT
+iptables -A FORWARD -i "$PRIMARY_IFACE" -o tun0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Relax reverse path filtering to avoid drops on tunneled flows
+sysctl -w net.ipv4.conf.all.rp_filter=0
+echo 'net.ipv4.conf.all.rp_filter=0' >> /etc/sysctl.conf
+
+netfilter-persistent save || true
+
+echo "=== IPIP server ready. Traffic from client will egress via $PRIMARY_IFACE ==="

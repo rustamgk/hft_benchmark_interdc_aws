@@ -1,0 +1,63 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Singapore WireGuard client setup ==="
+
+WG_ADDR_CLIENT="${client_wg_ip}"           # e.g. 10.10.0.2/32
+WG_PORT="${server_listen_port}"
+SERVER_PRIVATE_IP="${server_private_ip}"
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard netcat-openbsd
+
+umask 077
+wg genkey | tee /etc/wireguard/client.key | wg pubkey > /etc/wireguard/client.pub
+CLIENT_PRIV=$(cat /etc/wireguard/client.key)
+CLIENT_PUB=$(cat /etc/wireguard/client.pub)
+
+# Fetch server public key via netcat (port 9999) over peering with retries
+SERVER_PUB=""
+for i in $(seq 1 30); do
+  SERVER_PUB=$(nc -w 5 "$SERVER_PRIVATE_IP" 9999 2>/dev/null || true)
+  if [ -n "$SERVER_PUB" ]; then
+    break
+  fi
+  echo "[$i/30] Waiting for server pubkey on $SERVER_PRIVATE_IP:9999..."
+  sleep 2
+done
+if [ -z "$SERVER_PUB" ]; then
+  echo "Failed to retrieve server pubkey from $SERVER_PRIVATE_IP:9999 after retries" >&2
+  exit 1
+fi
+
+# Send client public key to server (port 10000) with retries
+for i in $(seq 1 10); do
+  echo -n "$CLIENT_PUB" | nc -w 5 "$SERVER_PRIVATE_IP" 10000 && break || true
+  echo "[$i/10] Retrying send of client pubkey to $SERVER_PRIVATE_IP:10000..."
+  sleep 2
+done
+
+SERVER_EP="$SERVER_PRIVATE_IP:$WG_PORT"
+
+cat >/etc/wireguard/wg0.conf <<EOF
+[Interface]
+Address = $${WG_ADDR_CLIENT}
+PrivateKey = $${CLIENT_PRIV}
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = $${SERVER_PUB}
+Endpoint = $${SERVER_EP}
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+EOF
+
+wg-quick up wg0
+
+# Policy-based routing exceptions for local/metadata and VPCs
+ip route add 169.254.169.254/32 dev eth0 || true
+ip rule add to 169.254.169.254/32 lookup main priority 100 || true
+ip route add 10.0.0.0/16 dev eth0 || true
+ip route add 10.1.0.0/16 dev eth0 || true
+
+echo "=== WireGuard client ready. Default egress via wg0 ==="

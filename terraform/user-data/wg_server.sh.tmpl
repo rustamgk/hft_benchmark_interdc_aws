@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Tokyo WireGuard NAT Server setup ==="
+
+WG_ADDR_SERVER="${server_wg_ip}"      # e.g. 10.10.0.1/24
+WG_PORT="${server_listen_port}"       # e.g. 51820
+WG_CLIENT_IP_CIDR="${client_wg_ip}"   # e.g. 10.10.0.2/32
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y wireguard iptables-persistent netfilter-persistent netcat-openbsd
+
+sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+
+# Determine primary interface
+PRIMARY_IFACE=$(ip route | awk '/default/ {print $5; exit}')
+umask 077
+wg genkey | tee /etc/wireguard/server.key | wg pubkey > /etc/wireguard/server.pub
+SERVER_PRIV=$(cat /etc/wireguard/server.key)
+SERVER_PUB=$(cat /etc/wireguard/server.pub)
+
+cat >/etc/wireguard/wg0.conf <<EOF
+[Interface]
+Address = $${WG_ADDR_SERVER}
+ListenPort = $${WG_PORT}
+PrivateKey = $${SERVER_PRIV}
+SaveConfig = true
+EOF
+
+wg-quick up wg0
+
+# NAT for internet egress only (avoid NAT for RFC1918/link-local to keep VPC-to-VPC flows intact)
+iptables -t nat -A POSTROUTING -d 10.0.0.0/8 -j RETURN
+iptables -t nat -A POSTROUTING -d 172.16.0.0/12 -j RETURN
+iptables -t nat -A POSTROUTING -d 192.168.0.0/16 -j RETURN
+iptables -t nat -A POSTROUTING -d 169.254.0.0/16 -j RETURN
+iptables -t nat -A POSTROUTING -o "$PRIMARY_IFACE" -j MASQUERADE
+netfilter-persistent save || true
+
+# Start a simple pubkey server on 9999
+( while true; do echo "$SERVER_PUB" | nc -lk -p 9999; done ) &
+
+# Receive client pubkey on 10000 (wait up to 2 minutes)
+sleep 2
+timeout 120 sh -c 'nc -l -p 10000 -w 30 > /etc/wireguard/client.pub'
+CLIENT_PUB=$(cat /etc/wireguard/client.pub 2>/dev/null || true)
+if [ -z "$CLIENT_PUB" ]; then
+	echo "Client public key not received within timeout; check SG rules and peering" >&2
+	exit 1
+fi
+
+# Add client as peer
+wg set wg0 peer "$CLIENT_PUB" allowed-ips $${WG_CLIENT_IP_CIDR}
+
+echo "=== WireGuard server ready. NAT via $PRIMARY_IFACE ==="

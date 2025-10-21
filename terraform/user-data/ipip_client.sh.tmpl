@@ -1,0 +1,93 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=== Singapore IPIP Client setup ==="
+
+SERVER_PRIVATE_IP="${server_private_ip}"
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y iproute2 netcat-openbsd curl
+
+# Ensure IPIP kernel module is available
+modprobe ipip || true
+
+# Relax reverse path filtering to allow asymmetric routing (peering in, overlay out)
+sysctl -w net.ipv4.conf.all.rp_filter=0 || true
+sysctl -w net.ipv4.conf.default.rp_filter=0 || true
+sysctl -w net.ipv4.conf.eth0.rp_filter=0 || true
+
+# Determine client private IP, main iface, and current gateway on main iface (with retries)
+CLIENT_PRIV_IP=""
+for i in $(seq 1 30); do
+  CLIENT_PRIV_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/local-ipv4 || true)
+  if [ -n "$${CLIENT_PRIV_IP}" ]; then break; fi
+  echo "[$i/30] Waiting for IMDS local-ipv4..."
+  sleep 1
+done
+if [ -z "$${CLIENT_PRIV_IP}" ]; then
+  echo "Failed to retrieve CLIENT_PRIV_IP from IMDS; aborting" >&2
+  exit 1
+fi
+
+# Wait for default route to be present to discover main iface and gateway
+for i in $(seq 1 30); do
+  if ip route | grep -q '^default '; then break; fi
+  echo "[$i/30] Waiting for default route..."
+  sleep 1
+done
+
+MAIN_IFACE=$(ip route | awk '/^default / {print $5; exit}')
+MAIN_GW=$(ip route | awk '/^default / {print $3; exit}')
+
+# Send our private IP to the server (port 10001) with retries
+for i in $(seq 1 60); do
+  echo -n "$${CLIENT_PRIV_IP}" | nc -w 3 "$SERVER_PRIVATE_IP" 10001 && break || true
+  echo "[$i/60] Waiting for server on $${SERVER_PRIVATE_IP}:10001..."
+  sleep 2
+done
+
+# Configure IPIP tunnel
+TUN_NAME=tun0
+CLIENT_TUN_IP=192.168.250.2/30
+
+# Ensure route to the remote endpoint stays on eth0 via the VPC router before changing default
+if [ -n "$${MAIN_GW}" ]; then
+  ip route replace "$${SERVER_PRIVATE_IP}"/32 via "$${MAIN_GW}" dev "$${MAIN_IFACE}" || true
+else
+  echo "WARN: MAIN_GW not found; skipping pinned /32 route to server" >&2
+fi
+
+ip tunnel add "$${TUN_NAME}" mode ipip local "$${CLIENT_PRIV_IP}" remote "$${SERVER_PRIVATE_IP}" ttl 255 || true
+ip addr add "$${CLIENT_TUN_IP}" dev "$${TUN_NAME}" || true
+ip link set "$${TUN_NAME}" up
+
+# Verify tunnel came up
+if ! ip link show "$${TUN_NAME}" >/dev/null 2>&1; then
+  echo "Tunnel $${TUN_NAME} not present after creation attempts" >&2
+  exit 1
+fi
+
+# Keep metadata and VPC CIDRs on eth0 via the VPC router gateway
+ip route replace 169.254.169.254/32 dev "$${MAIN_IFACE}" || true
+if [ -n "$${MAIN_GW}" ]; then
+  ip route replace 10.0.0.0/16 via "$${MAIN_GW}" dev "$${MAIN_IFACE}" || true
+  ip route replace 10.1.0.0/16 via "$${MAIN_GW}" dev "$${MAIN_IFACE}" || true
+else
+  echo "WARN: Could not determine main gateway; leaving VPC routes device-scoped" >&2
+  ip route replace 10.0.0.0/16 dev "$${MAIN_IFACE}" || true
+  ip route replace 10.1.0.0/16 dev "$${MAIN_IFACE}" || true
+fi
+
+# Wait for server tunnel IP to respond before switching default route
+for i in $(seq 1 60); do
+  if ping -c1 -W1 192.168.250.1 >/dev/null 2>&1; then
+    break
+  fi
+  echo "[$i/60] Waiting for 192.168.250.1 to become reachable..."
+  sleep 2
+done
+
+# Default route via IPIP tunnel (device route) after validation
+ip route replace default dev "$${TUN_NAME}"
+
+echo "=== IPIP client ready. Default egress via $${TUN_NAME} ==="
