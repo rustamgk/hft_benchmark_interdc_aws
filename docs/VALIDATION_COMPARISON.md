@@ -6,16 +6,45 @@ Note: You can optionally run the keepalive latency phase (connection reuse) by s
 
 Date: 2025-10-21
 
-## Quick comparison (p50/p95) — 2025-10-22
+## Quick comparison (p50/p95/p99) — 2025-10-22
 
-| Scenario               | Egress        | Egress IP      | P50 (ms) | P95 (ms) | Run folder                                   |
-|------------------------|---------------|----------------|----------|----------|----------------------------------------------|
-| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 270.23   | 283.97   | `validation/results/20251022-004612/`        |
-| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 132.52   | 266.66   | `validation/results/20251022-005628-baseline/` |
+| Scenario               | Egress        | Egress IP      | P50 (ms) | P95 (ms) | P99 (ms) | Run folder                                     |
+|------------------------|---------------|----------------|----------|----------|----------|-----------------------------------------------|
+| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 270.23   | 283.97   | 295.79   | `validation/results/20251022-004612/`          |
+| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 132.52   | 266.66   | 305.73   | `validation/results/20251022-005628-baseline/` |
 
 Notes (2025-10-22)
 - Delta (Via Tokyo pinned vs Baseline): P50 +137.71 ms, P95 +17.31 ms — consistent with added SG↔TYO leg; POP pinning maintained Tokyo edge.
 - Egress verification: Tokyo run geolocates to Tokyo (35.76.36.216); Baseline run geolocates to Singapore (54.254.160.207).
+
+## Quick comparison (cold vs keepalive) — 2025-10-22 (flags ON)
+
+Flags: PIN_TOKYO_POP=1, KEEPALIVE=1, TLS13=1, BREAKDOWN=1
+
+| Scenario               | Egress        | Egress IP      | Cold P50 | Cold P95 | Cold P99 | Warm P50 | Warm P95 | Warm P99 | Run folder                                     |
+|------------------------|---------------|----------------|----------|----------|----------|----------|----------|----------|-----------------------------------------------|
+| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 270.25   | 309.67   | 406.26   | 73.78    | 77.56    | 267.29   | `validation/results/20251022-012549/`          |
+| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 131.03   | 153.45   | 272.19   | 71.94    | 203.94   | 214.48   | `validation/results/20251022-012945-baseline/` |
+
+Overlay RTT (from Via‑Tokyo run): avg ≈ 68.70 ms (`02a-overlay-rtt.log`)
+
+Observations
+- Warm (keepalive) collapses TLS handshake RTTs; medians approach overlay RTT + server time (~72–74 ms), validating the overlay’s efficiency.
+- Cold via‑Tokyo remains ~270 ms median—dominated by SG↔TYO RTT in handshake and CDN edge, even when pinned.
+- Baseline warm P95 shows a few outliers (to ~204 ms); median remains ~72 ms. Cold baseline remains best for cold-starts due to lack of the extra inter‑region leg.
+
+### Interpretation (2025‑10‑22)
+
+- Keepalive effectiveness: With connection reuse, Via‑Tokyo and Baseline both converge to ~72–74 ms median, which is within a few ms of the measured overlay RTT (~68.7 ms) plus upstream server time. This confirms the overlay itself isn’t adding meaningful overhead beyond the inter‑region path.
+- Cold start cost: The ~270 ms cold median for Via‑Tokyo reflects the extra SG↔TYO RTT baked into TCP+TLS handshakes. Baseline cold remains faster (median ~131 ms) because it avoids the inter‑region hop on handshake.
+- Tail behavior: Occasional warm outliers (Via‑Tokyo p99 ~267 ms; Baseline warm p95 ~204 ms) likely stem from CDN/backend variability rather than the overlay. POP pinning removes cross‑region POP effects, reducing variance versus unpinned runs.
+- Egress correctness: Geolocation and IPs confirm egress in the intended regions (Tokyo for Via‑Tokyo, Singapore for Baseline).
+- Tuning not yet applied: These runs did not include kernel/MTU/MSS tunings (BBR/fq, MTU 1480, MSS clamp). Applying them should tighten tails further under load and avoid fragmentation‑related stalls.
+
+Recommended next steps
+1) Recreate instances to pick up tunings (BBR/fq, MTU 1480, MSS clamp), then rerun the same matrix with flags (PIN_TOKYO_POP=1, KEEPALIVE=1, TLS13=1, BREAKDOWN=1) to confirm tail improvements.
+2) If encryption is required, A/B test WireGuard overlay versus IPIP; expect similar medians with a small overhead in CPU and a few ms in handshake.
+3) If you need a managed, scalable and inspectable architecture across many VPCs, pilot TGW + Egress VPC and re‑measure; performance should be comparable, with cleaner ops but higher per‑GB costs.
 
 ## Quick comparison (p50/p95)
 
