@@ -10,22 +10,42 @@ cat > "$REPORT" << 'EOF'
 
 ## Executive Summary
 
-This report contains the results of the 5-phase validation suite for the Inter-Region Egress Orchestration project.
+This report contains the results of the validation suite for the Inter-Region Egress Orchestration project.
 
 ## Test Results
 
 ### Phase 1: Preflight Checks
 ✓ All preflight checks passed
 
-### Phase 2: Baseline Latency
+### Phase 2: Latency Measurements
 EOF
 
 if [ -f "$RESULTS_DIR/latency_stats.json" ]; then
     cat >> "$REPORT" << 'EOF'
 
-Latency Statistics (milliseconds):
+Cold (new connection each request) Latency Statistics (milliseconds):
 EOF
     cat "$RESULTS_DIR/latency_stats.json" | jq '.' | sed 's/^/  /' >> "$REPORT"
+fi
+
+if [ -f "$RESULTS_DIR/latency_stats_keepalive.json" ]; then
+    cat >> "$REPORT" << 'EOF'
+
+Warm (connection reuse / keepalive) Latency Statistics (milliseconds):
+EOF
+    cat "$RESULTS_DIR/latency_stats_keepalive.json" | jq '.' | sed 's/^/  /' >> "$REPORT"
+fi
+
+if [ -f "$RESULTS_DIR/02a-overlay-rtt.log" ]; then
+    cat >> "$REPORT" << 'EOF'
+
+### Phase 2a: Overlay RTT (ICMP to tunnel peer)
+```
+EOF
+    cat "$RESULTS_DIR/02a-overlay-rtt.log" >> "$REPORT"
+    cat >> "$REPORT" << 'EOF'
+```
+EOF
 fi
 
 cat >> "$REPORT" << 'EOF'

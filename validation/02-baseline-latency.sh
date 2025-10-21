@@ -11,13 +11,21 @@ TARGET_URL="https://$TARGET_HOST/api/v3/time"
 echo "Measuring latency ($ITERATIONS requests) to $TARGET_HOST ${RESOLVE_IP:+(pinned to $RESOLVE_IP)}..."
 
 LATENCY_FILE="$RESULTS_DIR/latencies.txt"
+BREAKDOWN_FILE="$RESULTS_DIR/latencies_breakdown.csv"
 : > "$LATENCY_FILE"
+[ "${BREAKDOWN:-0}" = "1" ] && echo "time_namelookup,time_connect,time_appconnect,time_starttransfer,time_total" > "$BREAKDOWN_FILE"
 
 for i in $(seq 1 $ITERATIONS); do
-    if [ -n "${RESOLVE_IP:-}" ]; then
-        TIME=$(curl -s --resolve "$TARGET_HOST:443:$RESOLVE_IP" -w "%{time_total}" -o /dev/null "$TARGET_URL")
+    CURL_ARGS=( -s -o /dev/null )
+    [ -n "${RESOLVE_IP:-}" ] && CURL_ARGS+=( --resolve "$TARGET_HOST:443:$RESOLVE_IP" )
+    [ "${TLS13:-0}" = "1" ] && CURL_ARGS+=( --tlsv1.3 )
+
+    if [ "${BREAKDOWN:-0}" = "1" ]; then
+        LINE=$(curl "${CURL_ARGS[@]}" -w "%{time_namelookup},%{time_connect},%{time_appconnect},%{time_starttransfer},%{time_total}\n" "$TARGET_URL")
+        echo "$LINE" >> "$BREAKDOWN_FILE"
+        TIME=$(echo "$LINE" | awk -F, '{print $5}')
     else
-        TIME=$(curl -s -w "%{time_total}" -o /dev/null "$TARGET_URL")
+        TIME=$(curl "${CURL_ARGS[@]}" -w "%{time_total}" "$TARGET_URL")
     fi
     echo "$TIME" >> "$LATENCY_FILE"
     [ $((i % 10)) -eq 0 ] && echo "  Completed: $i/$ITERATIONS"
