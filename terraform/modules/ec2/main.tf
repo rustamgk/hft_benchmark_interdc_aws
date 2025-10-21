@@ -36,6 +36,7 @@ resource "aws_instance" "main" {
   iam_instance_profile   = var.iam_instance_profile != "" ? var.iam_instance_profile : null
   
   user_data = var.user_data
+  user_data_replace_on_change = true
 
   tags = merge(
     var.tags,
