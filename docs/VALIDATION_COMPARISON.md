@@ -27,27 +27,30 @@ Path and geolocation
 Notes
 - Validation source: `validation/results/20251021-191127/latency_stats.json`, `.../geolocation.json`, `.../VALIDATION_REPORT.md`
 
-## Scenario B — Direct Singapore Baseline (to be collected)
+## Scenario B — Direct Singapore Baseline
 
-Once the public baseline instance is provisioned and reachable, run:
+- Source host: Singapore baseline (public), direct egress via IGW
+- Path: Singapore → Internet
+- Egress IP: 54.254.160.207
+- Geolocation: Singapore, SG
+- Run folder: `validation/results/20251021-215657-baseline/`
 
-```
-cd validation
-./run_validation_baseline.sh
-```
+Latency statistics (100 HTTPS requests to api.binance.com)
+- Min: 125.96 ms
+- Median (P50): 130.30 ms
+- Mean: 138.01 ms
+- P95: 219.31 ms
+- P99: 308.56 ms
+- Max: 308.56 ms
 
-Then record:
-- Egress IP (should be Singapore region IP)
-- Geolocation (City=Singapore, Country=SG)
-- Latency statistics (same methodology as Scenario A)
-- Path (direct from Singapore to Internet)
+## Comparison summary
 
-## Comparison summary (to fill after baseline run)
-
-- Egress location: Via Tokyo = Tokyo, JP; Baseline = Singapore, SG
-- P50 delta (ms): [baseline_p50] vs 541.67 → Δ = [baseline_p50 - 541.67]
-- P95 delta (ms): [baseline_p95] vs 678.56 → Δ = [baseline_p95 - 678.56]
-- Qualitative path differences: [insert brief mtr/traceroute observations]
+- Egress location: Via Tokyo = Tokyo, JP (35.76.36.216); Baseline = Singapore, SG (54.254.160.207)
+- P50 delta (ms): 130.30 vs 541.67 → Δ = -411.37 ms (baseline faster)
+- P95 delta (ms): 219.31 vs 678.56 → Δ = -459.25 ms (baseline faster)
+- Qualitative path differences:
+	- Via Tokyo adds the Singapore↔Tokyo leg and NAT on the Tokyo bastion
+	- Baseline goes direct from Singapore to the Internet
 
 ## Interpretation
 
