@@ -120,6 +120,14 @@ resource "aws_security_group" "main" {
     cidr_blocks = ["10.0.0.0/16", "10.1.0.0/16"]
   }
 
+  # Allow IP-in-IP (protocol 4) between VPCs for IPIP tunnel
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = 4
+    cidr_blocks = ["10.0.0.0/16", "10.1.0.0/16"]
+  }
+
   # Outbound - allow all
   egress {
     from_port   = 0
