@@ -10,6 +10,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESULTS_DIR="$SCRIPT_DIR/results/$(date +%Y%m%d-%H%M%S)"
 TERRAFORM_DIR="$SCRIPT_DIR/../terraform"
 
+# Sensible defaults for fair, low-variance measurements (allow env override)
+PIN_TOKYO_POP=${PIN_TOKYO_POP:-1}
+KEEPALIVE=${KEEPALIVE:-1}
+TLS13=${TLS13:-1}
+BREAKDOWN=${BREAKDOWN:-1}
+
 # Function to extract values from terraform.tfstate
 get_terraform_value() {
   local key=$1
@@ -169,7 +175,7 @@ echo ""
 
 echo "[3/6] Measuring baseline latency from Singapore..."
 TOKYO_CF_IP=""
-if [ "${PIN_TOKYO_POP:-0}" = "1" ] && [ -n "$BASTION_SSH_HOST" ]; then
+if [ "${PIN_TOKYO_POP}" = "1" ] && [ -n "$BASTION_SSH_HOST" ]; then
   echo "Resolving api.binance.com on bastion to pin Tokyo POP..."
   TOKYO_CF_IP=$(ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 "${SSH_USER}@${BASTION_SSH_HOST}" \
     "dig +short api.binance.com | tail -n1" 2>/dev/null || echo "")
@@ -185,21 +191,21 @@ if [ -n "$TOKYO_CF_IP" ]; then
   BASE_CMD="RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $BASE_CMD"
 fi
 # Optional TLS 1.3 and breakdown
-if [ "${TLS13:-0}" = "1" ]; then BASE_CMD="TLS13=1 $BASE_CMD"; fi
-if [ "${BREAKDOWN:-0}" = "1" ]; then BASE_CMD="BREAKDOWN=1 $BASE_CMD"; fi
+if [ "${TLS13}" = "1" ]; then BASE_CMD="TLS13=1 $BASE_CMD"; fi
+if [ "${BREAKDOWN}" = "1" ]; then BASE_CMD="BREAKDOWN=1 $BASE_CMD"; fi
 
 ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" "$BASE_CMD" 2>&1 | tee "$RESULTS_DIR/02-latency.log"
 echo "✓ Latency measurement complete"
 echo ""
 
 # Optional keepalive latency phase
-if [ "${KEEPALIVE:-0}" = "1" ]; then
+if [ "${KEEPALIVE}" = "1" ]; then
   echo "[3.5/6] Measuring latency with connection reuse (keepalive)..."
   KEEP_CMD="$REMOTE_PROXY_ENV bash $REMOTE_VALIDATION_DIR/02b-latency-keepalive.sh $REMOTE_VALIDATION_DIR"
   if [ -n "$TOKYO_CF_IP" ]; then
     KEEP_CMD="RESOLVE_HOST=api.binance.com RESOLVE_IP=$TOKYO_CF_IP $KEEP_CMD"
   fi
-  if [ "${TLS13:-0}" = "1" ]; then KEEP_CMD="TLS13=1 $KEEP_CMD"; fi
+  if [ "${TLS13}" = "1" ]; then KEEP_CMD="TLS13=1 $KEEP_CMD"; fi
   ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no $SSH_JUMP_OPT "$SSH_TARGET" "$KEEP_CMD" 2>&1 | tee "$RESULTS_DIR/02b-latency-keepalive.log"
   echo "✓ Keepalive latency measurement complete"
   echo ""
@@ -226,7 +232,7 @@ echo ""
 # Step 7: Copy results back to local machine
 echo "[7/6] Copying results back to local machine..."
 scp -i "$SSH_KEY" -r -o StrictHostKeyChecking=no -o ConnectTimeout=10 $SCP_JUMP_OPT \
-  "$SSH_TARGET:$REMOTE_VALIDATION_DIR/"{latencies.txt,latency_stats.json,geolocation.json,VALIDATION_REPORT.md,*.log} \
+  "$SSH_TARGET:$REMOTE_VALIDATION_DIR/"{latencies.txt,latency_stats.json,latencies_keepalive.txt,latency_stats_keepalive.json,latencies_breakdown.csv,latencies_keepalive_breakdown.csv,overlay_rtt.txt,geolocation.json,VALIDATION_REPORT.md,*.log} \
   "$RESULTS_DIR/" 2>/dev/null || true
 echo "✓ Results copied successfully"
 echo ""
