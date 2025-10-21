@@ -25,7 +25,7 @@ if [ ${#MISSING[@]} -gt 0 ]; then
         esac
     done
     # Also try to install mtr-tiny and traceroute for path verification
-    PKGS+=(mtr-tiny traceroute)
+        PKGS+=(mtr-tiny traceroute iputils-ping)
     export DEBIAN_FRONTEND=noninteractive
     sudo apt-get update -y >/dev/null 2>&1 || sudo apt-get update -y
     sudo apt-get install -y "${PKGS[@]}"

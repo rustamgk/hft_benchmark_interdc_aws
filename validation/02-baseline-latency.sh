@@ -4,13 +4,21 @@
 RESULTS_DIR="${1:-.}"
 ITERATIONS=${2:-100}
 
-echo "Measuring latency ($ITERATIONS requests)..."
+# Optional pinning: RESOLVE_HOST (default api.binance.com) and RESOLVE_IP
+TARGET_HOST=${RESOLVE_HOST:-api.binance.com}
+TARGET_URL="https://$TARGET_HOST/api/v3/time"
+
+echo "Measuring latency ($ITERATIONS requests) to $TARGET_HOST ${RESOLVE_IP:+(pinned to $RESOLVE_IP)}..."
 
 LATENCY_FILE="$RESULTS_DIR/latencies.txt"
-> "$LATENCY_FILE"
+: > "$LATENCY_FILE"
 
 for i in $(seq 1 $ITERATIONS); do
-    TIME=$(curl -s -w "%{time_total}" -o /dev/null https://api.binance.com/api/v3/time)
+    if [ -n "${RESOLVE_IP:-}" ]; then
+        TIME=$(curl -s --resolve "$TARGET_HOST:443:$RESOLVE_IP" -w "%{time_total}" -o /dev/null "$TARGET_URL")
+    else
+        TIME=$(curl -s -w "%{time_total}" -o /dev/null "$TARGET_URL")
+    fi
     echo "$TIME" >> "$LATENCY_FILE"
     [ $((i % 10)) -eq 0 ] && echo "  Completed: $i/$ITERATIONS"
 done
