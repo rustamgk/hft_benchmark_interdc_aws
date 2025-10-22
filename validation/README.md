@@ -8,12 +8,48 @@ This directory contains the comprehensive validation framework for the Inter-Reg
 cd validation
 ./run_validation.sh
 
+# Also available:
+#   ./run_validation_baseline.sh  # run from Singapore baseline (public)
+#   ./run_validation_tokyo.sh     # run from Tokyo bastion (public)
+
 # Optional flags (env vars):
-#   PIN_TOKYO_POP=1   # pin CDN POP in Tokyo via --resolve
-#   KEEPALIVE=1       # add an extra keepalive latency phase
-#   TLS13=1           # force TLS 1.3 for latency phases
-#   BREAKDOWN=1       # also emit CSV with curl timing breakdown
+#   PIN_TOKYO_POP=1   # pin CDN POP in Tokyo via --resolve (defaults ON for via‑Tokyo and Tokyo runners)
+#   KEEPALIVE=1       # add an extra keepalive latency phase (defaults ON)
+#   TLS13=1           # force TLS 1.3 for latency phases (defaults ON)
+#   BREAKDOWN=1       # also emit CSV with curl timing breakdown (defaults ON)
 ```
+
+## Runner scripts
+
+Three orchestrator scripts wrap the individual phases and collect artifacts consistently. Defaults are chosen for fair, low-variance comparisons; you can override via env vars.
+
+- Via‑Tokyo (Singapore client → Tokyo egress): `./run_validation.sh`
+	- Defaults: `PIN_TOKYO_POP=1`, `KEEPALIVE=1`, `TLS13=1`, `BREAKDOWN=1`
+	- Overlay RTT direction: Singapore → Tokyo tunnel IP `192.168.250.1`
+	- Saves cold and keepalive stats, curl breakdown CSVs, overlay RTT, path, and geolocation.
+
+- Baseline (Singapore direct egress): `./run_validation_baseline.sh`
+	- Defaults: `KEEPALIVE=1`, `TLS13=1`, `BREAKDOWN=1` (no POP pinning by default)
+	- Purposefully leaves POP unpinned to reflect typical Singapore egress behavior.
+	- Collects the same artifacts as via‑Tokyo, minus overlay RTT.
+
+- Tokyo vantage (run on Tokyo bastion): `./run_validation_tokyo.sh`
+	- Run from your workstation; it SSHes to the Tokyo bastion, executes phases, then pulls artifacts back.
+	- Defaults: `PIN_TOKYO_POP=1`, `KEEPALIVE=1`, `TLS13=1`, `BREAKDOWN=1`
+	- Overlay RTT direction: Tokyo → Singapore tunnel IP `192.168.250.2`
+	- Requirements: Terraform outputs available (or set `TOKYO_BASTION_PUBLIC`/`TOKYO_BASTION_EGRESS`) and a valid `SSH_KEY` (defaults to `~/.ssh/hft-benchmark.pem`).
+	- Example:
+
+```bash
+# From repo root or validation/
+cd validation
+export SSH_KEY=~/.ssh/hft-benchmark.pem  # set if you use a different key path
+./run_validation_tokyo.sh
+```
+
+Notes on POP pinning:
+- For via‑Tokyo and Tokyo vantage, POP pinning defaults ON to keep the measurement anchored to a Tokyo edge and reduce variance.
+- For baseline, POP pinning defaults OFF to represent typical Singapore-origin behavior. You may manually pin by setting `RESOLVE_HOST=api.binance.com RESOLVE_IP=<edge-ip>` when invoking phase scripts directly.
 
 ## What It Tests
 
@@ -38,7 +74,8 @@ Measures HTTPS latency to Binance API:
 ### 2a. Overlay RTT (`02a-overlay-rtt.sh`)
 
 Measures the ICMP RTT across the inter-region overlay tunnel:
-- Pings the Tokyo tunnel peer (e.g., 192.168.250.1)
+- From Singapore runs: pings Tokyo tunnel peer (192.168.250.1)
+- From Tokyo runs: pings Singapore tunnel peer (192.168.250.2)
 - Useful to correlate HTTP latency with raw path RTT
 
 ### 2b. Keepalive Latency (`02b-latency-keepalive.sh`)
@@ -98,6 +135,7 @@ validation/results/20251016-120000/
 ├── 01-preflight.log              # Preflight output
 ├── 02-latency.log                        # Latency measurements
 ├── 02a-overlay-rtt.log                    # Overlay RTT ping output (if run)
+├── overlay_rtt.txt                        # Parsed overlay RTT summary (avg/stddev)
 ├── latencies.txt                          # Raw per-request totals (cold)
 ├── latencies_breakdown.csv                # Curl timing breakdown (optional)
 ├── latency_stats.json                     # Computed stats (cold)

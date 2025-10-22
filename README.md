@@ -1,4 +1,19 @@
-# HFT Inter-Region Egress Orchestration - Complete Guide
+# AWS Inter-Region Benchmark - Complete Guide
+
+## Quick latency snapshot (warm/keepalive) — 2025-10-22 (tuned)
+
+These are the latest warm (connection reuse) results from the validation suite. See `docs/VALIDATION_COMPARISON.md` for full context and cold vs warm breakdowns.
+
+| Scenario                 | Egress Region | Egress IP      | Warm P50 (ms) | Warm P95 (ms) | Warm P99 (ms) | Run folder                                      |
+|--------------------------|---------------|----------------|---------------|---------------|---------------|-------------------------------------------------|
+| Direct SG baseline       | Singapore, SG | 54.254.160.207 | 72.09         | 74.67         | 151.64        | `validation/results/20251022-020550-baseline/` |
+| Via Tokyo (pinned POP)   | Tokyo, JP     | 35.76.36.216   | 76.05         | 79.57         | 278.12        | `validation/results/20251022-020050/`          |
+| Tokyo vantage (direct)   | Tokyo, JP     | 35.76.36.216   | 5.48          | 6.40          | 64.58         | `validation/results/20251022-022358-tokyo/`    |
+
+Notes
+- “Warm” reflects typical app behavior with connection reuse (KEEPALIVE=1). Medians for Singapore-origin scenarios converge near overlay RTT + server time (~72–76 ms).
+- The Tokyo vantage run is included for perspective when originating directly in Tokyo.
+- Details, cold-start numbers, and methodology: `docs/VALIDATION_COMPARISON.md`.
 
 ## Overview
 

@@ -19,10 +19,10 @@ Current solution (IPIP + EC2 NAT in Tokyo)
 - Inter-region data transfer (AWS) may also apply per GB; verify combined rate for your account
 - Data transfer to Internet from Tokyo: region tiered (example: ~$0.09/GB for first 10 TB) — check current Tokyo egress price
 
-Note: A NAT Gateway resource exists in Terraform but is unused by this overlay. If left running, add:
+Note: If you add an AWS NAT Gateway (not required for this overlay), include:
 - NAT Gateway hourly: ~ $0.048/hr ≈ $35/mo
 - NAT Gateway data processing: ~ $0.045/GB
-Recommendation: Remove the NAT Gateway to avoid idle cost if you keep the EC2 NAT approach.
+Recommendation: Prefer EC2 NAT for this pattern to avoid these fixed and per‑GB costs.
 
 TGW centralized egress alternative (typical pattern)
 - AWS Transit Gateway hourly per attachment: ~$0.05/hr/attachment
@@ -39,7 +39,7 @@ Let V be your monthly data volume through the path (in GB/month).
 IPIP overlay (current)
 - Fixed monthly: EC2 (t3.micro + t3.small) + EIP + EBS ≈ $7.5 + $15 + $3.6 + $1.6 = ~$27.7/mo
 - Variable per-GB: Inter-region data (peering) + Tokyo egress ≈ ($0.02 + egress_tokyo_per_gb) * V
-- If NAT Gateway kept: add ~$35 fixed + $0.045 * V (recommend removal)
+- If NAT Gateway added: add ~$35 fixed + $0.045 * V (not recommended here)
 
 TGW centralized egress
 - Fixed monthly: 2 TGW attachments + NAT GW hourly ≈ $72 + $35 = ~$107/mo
@@ -70,6 +70,10 @@ TGW with inter-region TGW peering (if applicable)
 - Total: ~$722/mo
 
 Conclusion (at this traffic level): IPIP + EC2 NAT is significantly cheaper than TGW centralized egress. TGW may be preferable for scale, operations, or advanced routing, but it costs more per GB and per hour.
+
+Quick summary (current config)
+- Fixed: ~ $28/mo (2 EC2 + EIP + EBS)
+- Variable: ~$0.02/GB (peering) + Tokyo egress tier price
 
 ## How to calculate in AWS Pricing Calculator
 

@@ -55,6 +55,24 @@ This document describes the complete architecture for inter-region egress orches
 
 ---
 
+## Current implementation details (IP-in-IP overlay) — 2025-10-22
+
+This deployment steers Singapore egress via a lightweight IP-in-IP (protocol 4) overlay to the Tokyo NAT host.
+
+- Overlay endpoints
+    - Tokyo bastion/NAT: tun0 192.168.250.1/30
+    - Singapore client: tun0 192.168.250.2/30
+- Routing
+    - Singapore default route via tun0 (next-hop 192.168.250.1)
+    - Local/VPC/IMDS routes pinned to eth0 to keep instance metadata and intra‑VPC access working
+- NAT and forwarding (Tokyo)
+    - iptables MASQUERADE on eth0 to SNAT to the Tokyo Elastic IP
+    - FORWARD rules allow 10.0.0.0/16 ↔ 0.0.0.0/0; conntrack state respected
+- Kernel/network tunings
+    - fq qdisc + BBR congestion control; tcp_slow_start_after_idle=0
+    - rp_filter disabled on all/eth0/tun0
+    - tun0 MTU=1480 and TCPMSS clamp to PMTU (avoid fragmentation)
+
 ## Traffic Flow
 
 ### Step 1: Client Initiation (Singapore)
@@ -66,7 +84,7 @@ Creates HTTPS connection to api.binance.com
     ↓
 Packet: SRC=10.0.1.10, DST=1.1.1.1 (example Binance IP)
     ↓
-Routing: 10.1.0.0/16 → pcx-xxxxxxxx (peering connection)
+Routing: default route via tun0 (192.168.250.1); local/VPC/IMDS remain on eth0
 ```
 
 **Source**: 10.0.1.10 (Singapore client)
@@ -77,7 +95,7 @@ Routing: 10.1.0.0/16 → pcx-xxxxxxxx (peering connection)
 ```
 Packet enters VPC Peering Connection
     ↓
-AWS backbone routes to Tokyo VPC
+AWS backbone routes to Tokyo VPC (payload is encapsulated via IP-in-IP over peering)
     ↓
 Packet arrives at Tokyo ENI (Elastic Network Interface)
     ↓
@@ -187,7 +205,7 @@ Singapore EC2 receives response
 
 | Setting | Value | Reason |
 |---------|-------|--------|
-| Instance Type | t3.small | Same as Singapore |
+| Instance Type | t3.micro | Cost-efficient NAT/bastion |
 | AMI | Ubuntu 22.04 LTS | Standard Linux distro |
 | Source/Dest Check | **Disabled** | Allow routing from other IPs |
 | Elastic IP | Assigned | Consistent egress IP |
@@ -227,6 +245,11 @@ netfilter-persistent save
 ```
 
 **Result**: All traffic from 10.0.0.0/16 appears to come from Tokyo's Elastic IP
+
+Additional tunings applied in this deployment:
+- net.core.default_qdisc=fq; net.ipv4.tcp_congestion_control=bbr; net.ipv4.tcp_slow_start_after_idle=0
+- net.ipv4.conf.{all,eth0,tun0}.rp_filter=0
+- tun0 MTU=1480 and iptables mangle TCPMSS clamp to PMTU
 
 ---
 
@@ -322,8 +345,8 @@ Tokyo EC2 → Binance (internet)   50-100ms
 TLS handshake                     10-30ms
 HTTPS API response               varies
 ─────────────────────────────────────────
-Total (first request)            200-300ms
-Total (subsequent requests)      150-250ms
+Total (first request)            ~270ms via‑Tokyo; ~130-160ms direct SG (cold)
+Total (subsequent requests)      ~72-76ms from SG (keepalive); ~5-6ms from Tokyo vantage
 ```
 
 ### Why Is Latency High?

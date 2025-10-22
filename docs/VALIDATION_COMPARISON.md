@@ -6,6 +6,18 @@ Note: You can optionally run the keepalive latency phase (connection reuse) by s
 
 Date: 2025-10-21
 
+## At-a-glance warm summary — 2025-10-22 (tuned)
+
+| Scenario               | Egress        | Egress IP      | Warm P50 (ms) | Warm P95 (ms) | Warm P99 (ms) | Run folder                                      |
+|------------------------|---------------|----------------|---------------|---------------|---------------|-------------------------------------------------|
+| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 72.09         | 74.67         | 151.64        | `validation/results/20251022-020550-baseline/` |
+| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 76.05         | 79.57         | 278.12        | `validation/results/20251022-020050/`          |
+| Tokyo vantage (direct) | Tokyo, JP     | 35.76.36.216   | 5.48          | 6.40          | 64.58         | `validation/results/20251022-022358-tokyo/`    |
+
+Notes
+- Warm = connection reuse (KEEPALIVE=1). Medians from Singapore origin (~72–76 ms) track overlay RTT (~70 ms) + server time.
+- See sections below for cold vs warm breakdowns, overlay RTT, and interpretation.
+
 ## Quick comparison (p50/p95/p99) — 2025-10-22
 
 | Scenario               | Egress        | Egress IP      | P50 (ms) | P95 (ms) | P99 (ms) | Run folder                                     |
@@ -62,6 +74,20 @@ Observations (tuned)
 - Baseline warm tail tightened markedly (p95 ~74.67 ms) versus earlier runs, consistent with tunings reducing queueing/fragmentation risks.
 - Via‑Tokyo warm p99 still shows a rare outlier (~278 ms), likely upstream/CDN variance; medians stay stable.
 - Cold medians/p95 did not materially change (as expected), since cold is dominated by handshake RTTs rather than kernel/MTU tuning.
+
+## Tokyo vantage — 2025-10-22 (tuned)
+
+Context: Validation suite executed directly on the Tokyo bastion.
+
+| Scenario         | Egress   | Egress IP    | Cold P50 | Cold P95 | Cold P99 | Warm P50 | Warm P95 | Warm P99 | Run folder                                 |
+|------------------|----------|--------------|----------|----------|----------|----------|----------|----------|--------------------------------------------|
+| Tokyo (direct)   | Tokyo,JP | 35.76.36.216 | 66.45    | 144.33   | 208.13   | 5.48     | 6.40     | 64.58    | `validation/results/20251022-022358-tokyo/` |
+
+Overlay RTT (Tokyo → Singapore tunnel peer): avg ≈ 69.93 ms (`02a-overlay-rtt.log`)
+
+Notes
+- From Tokyo, warm medians drop to ~5–6 ms because there’s no inter‑region leg and the connection stays warm; cold includes DNS/connect/TLS and upstream variability but remains well below Singapore‑origin cold.
+- Overlay RTT aligns with the Singapore‑origin direction (~70 ms), confirming symmetric path characteristics.
 
 ## Quick comparison (p50/p95)
 
