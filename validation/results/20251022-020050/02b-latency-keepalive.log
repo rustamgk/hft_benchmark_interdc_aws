@@ -1,0 +1,12 @@
+Measuring keepalive latency (100 requests) to api.binance.com (pinned to 3.168.246.167)...
+Latency (keepalive) saved to: /tmp/hft-validation-1761091253/latencies_keepalive.txt
+Keepalive statistics:
+{
+    "count": 100,
+    "min": 74.88,
+    "max": 278.12,
+    "mean": 78.15,
+    "median": 76.05,
+    "p95": 79.57,
+    "p99": 278.12
+}

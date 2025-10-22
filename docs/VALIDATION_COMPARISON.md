@@ -46,6 +46,23 @@ Recommended next steps
 2) If encryption is required, A/B test WireGuard overlay versus IPIP; expect similar medians with a small overhead in CPU and a few ms in handshake.
 3) If you need a managed, scalable and inspectable architecture across many VPCs, pilot TGW + Egress VPC and re‑measure; performance should be comparable, with cleaner ops but higher per‑GB costs.
 
+## Quick comparison (cold vs keepalive) — 2025-10-22 (tuned)
+
+Context: Instances recreated with BBR/fq, MTU 1480, and TCPMSS clamp. Flags defaulted ON (PIN_TOKYO_POP for Via‑Tokyo; KEEPALIVE/TLS13/BREAKDOWN for both).
+
+| Scenario               | Egress        | Egress IP      | Cold P50 | Cold P95 | Cold P99 | Warm P50 | Warm P95 | Warm P99 | Run folder                                     |
+|------------------------|---------------|----------------|----------|----------|----------|----------|----------|----------|-----------------------------------------------|
+| Via Tokyo (pinned POP) | Tokyo, JP     | 35.76.36.216   | 275.42   | 300.01   | 312.62   | 76.05    | 79.57    | 278.12   | `validation/results/20251022-020050/`          |
+| Direct SG baseline     | Singapore, SG | 54.254.160.207 | 133.98   | 153.81   | 263.22   | 72.09    | 74.67    | 151.64   | `validation/results/20251022-020550-baseline/` |
+
+Overlay RTT (from Via‑Tokyo run): avg ≈ 70.01 ms (`02a-overlay-rtt.log`)
+
+Observations (tuned)
+- Warm medians remain ~72–76 ms, closely tracking overlay RTT, indicating minimal overlay overhead with connection reuse.
+- Baseline warm tail tightened markedly (p95 ~74.67 ms) versus earlier runs, consistent with tunings reducing queueing/fragmentation risks.
+- Via‑Tokyo warm p99 still shows a rare outlier (~278 ms), likely upstream/CDN variance; medians stay stable.
+- Cold medians/p95 did not materially change (as expected), since cold is dominated by handshake RTTs rather than kernel/MTU tuning.
+
 ## Quick comparison (p50/p95)
 
 | Scenario                | Egress         | Egress IP       | P50 (ms) | P95 (ms) | Run folder                                    |

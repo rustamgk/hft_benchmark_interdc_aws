@@ -1,0 +1,12 @@
+{
+  "ip": "54.254.160.207",
+  "hostname": "ec2-54-254-160-207.ap-southeast-1.compute.amazonaws.com",
+  "city": "Singapore",
+  "region": "Singapore",
+  "country": "SG",
+  "loc": "1.2897,103.8501",
+  "org": "AS16509 Amazon.com, Inc.",
+  "postal": "018989",
+  "timezone": "Asia/Singapore",
+  "readme": "https://ipinfo.io/missingauth"
+}
