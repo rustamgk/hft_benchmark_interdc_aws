@@ -34,6 +34,28 @@ if [ -f "$RESULTS_DIR/latency_stats_keepalive.json" ]; then
 Warm (connection reuse / keepalive) Latency Statistics (milliseconds):
 EOF
     cat "$RESULTS_DIR/latency_stats_keepalive.json" | jq '.' | sed 's/^/  /' >> "$REPORT"
+
+    # Also render a concise Markdown table for warm results
+    W_JSON="$RESULTS_DIR/latency_stats_keepalive.json"
+    W_COUNT=$(jq -r '.count' "$W_JSON" 2>/dev/null)
+    W_MIN=$(jq -r '.min' "$W_JSON" 2>/dev/null)
+    W_MEAN=$(jq -r '.mean' "$W_JSON" 2>/dev/null)
+    W_MEDIAN=$(jq -r '.median' "$W_JSON" 2>/dev/null)
+    W_P95=$(jq -r '.p95' "$W_JSON" 2>/dev/null)
+    W_P99=$(jq -r '.p99' "$W_JSON" 2>/dev/null)
+    W_MAX=$(jq -r '.max' "$W_JSON" 2>/dev/null)
+
+    if [ -n "$W_COUNT" ]; then
+      cat >> "$REPORT" << EOF
+
+Warm Latency Summary (ms)
+
+| Count | Min | Mean | P50 | P95 | P99 | Max |
+| -----:| ---:| ----:| ---:| ---:| ---:| ---:|
+| $W_COUNT | $W_MIN | $W_MEAN | $W_MEDIAN | $W_P95 | $W_P99 | $W_MAX |
+
+EOF
+    fi
 fi
 
 if [ -f "$RESULTS_DIR/02a-overlay-rtt.log" ]; then
