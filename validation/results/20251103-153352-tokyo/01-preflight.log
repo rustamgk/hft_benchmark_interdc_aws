@@ -1,0 +1,66 @@
+Checking connectivity and prerequisites...
+Installing missing tools: jq
+Reading package lists...
+Building dependency tree...
+Reading state information...
+mtr-tiny is already the newest version (0.95-1).
+mtr-tiny set to manually installed.
+iputils-ping is already the newest version (3:20211215-1ubuntu0.1).
+iputils-ping set to manually installed.
+The following NEW packages will be installed:
+  jq libjq1 libonig5 traceroute
+0 upgraded, 4 newly installed, 0 to remove and 14 not upgraded.
+Need to get 403 kB of archives.
+After this operation, 1239 kB of additional disk space will be used.
+Get:1 http://ap-northeast-1.ec2.archive.ubuntu.com/ubuntu jammy/main amd64 libonig5 amd64 6.9.7.1-2build1 [172 kB]
+Get:2 http://ap-northeast-1.ec2.archive.ubuntu.com/ubuntu jammy-updates/main amd64 libjq1 amd64 1.6-2.1ubuntu3.1 [133 kB]
+Get:3 http://ap-northeast-1.ec2.archive.ubuntu.com/ubuntu jammy-updates/main amd64 jq amd64 1.6-2.1ubuntu3.1 [52.5 kB]
+Get:4 http://ap-northeast-1.ec2.archive.ubuntu.com/ubuntu jammy/universe amd64 traceroute amd64 1:2.1.0-2 [45.4 kB]
+debconf: unable to initialize frontend: Dialog
+debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buffer, or without a controlling terminal.)
+debconf: falling back to frontend: Readline
+debconf: unable to initialize frontend: Readline
+debconf: (This frontend requires a controlling tty.)
+debconf: falling back to frontend: Teletype
+dpkg-preconfigure: unable to re-open stdin: 
+Fetched 403 kB in 0s (7679 kB/s)
+Selecting previously unselected package libonig5:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 66015 files and directories currently installed.)
+Preparing to unpack .../libonig5_6.9.7.1-2build1_amd64.deb ...
+Unpacking libonig5:amd64 (6.9.7.1-2build1) ...
+Selecting previously unselected package libjq1:amd64.
+Preparing to unpack .../libjq1_1.6-2.1ubuntu3.1_amd64.deb ...
+Unpacking libjq1:amd64 (1.6-2.1ubuntu3.1) ...
+Selecting previously unselected package jq.
+Preparing to unpack .../jq_1.6-2.1ubuntu3.1_amd64.deb ...
+Unpacking jq (1.6-2.1ubuntu3.1) ...
+Selecting previously unselected package traceroute.
+Preparing to unpack .../traceroute_1%3a2.1.0-2_amd64.deb ...
+Unpacking traceroute (1:2.1.0-2) ...
+Setting up traceroute (1:2.1.0-2) ...
+update-alternatives: using /usr/bin/traceroute.db to provide /usr/bin/traceroute (traceroute) in auto mode
+update-alternatives: using /usr/bin/traceroute6.db to provide /usr/bin/traceroute6 (traceroute6) in auto mode
+update-alternatives: using /usr/bin/lft.db to provide /usr/bin/lft (lft) in auto mode
+update-alternatives: using /usr/bin/traceproto.db to provide /usr/bin/traceproto (traceproto) in auto mode
+update-alternatives: using /usr/sbin/tcptraceroute.db to provide /usr/sbin/tcptraceroute (tcptraceroute) in auto mode
+Setting up libonig5:amd64 (6.9.7.1-2build1) ...
+Setting up libjq1:amd64 (1.6-2.1ubuntu3.1) ...
+Setting up jq (1.6-2.1ubuntu3.1) ...
+Processing triggers for man-db (2.10.2-1) ...
+Processing triggers for libc-bin (2.35-0ubuntu3.11) ...
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu) binaries on this host.
+Tool 'curl': ✓
+Tool 'jq': ✓
+Tool 'python3': ✓
+DNS resolution (api.binance.com): ✓
+Internet connectivity (curl): ✓
+Preflight checks passed!

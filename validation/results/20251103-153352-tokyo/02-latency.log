@@ -1,0 +1,22 @@
+Measuring latency (100 requests) to api.binance.com (pinned to 18.65.186.77)...
+  Completed: 10/100
+  Completed: 20/100
+  Completed: 30/100
+  Completed: 40/100
+  Completed: 50/100
+  Completed: 60/100
+  Completed: 70/100
+  Completed: 80/100
+  Completed: 90/100
+  Completed: 100/100
+Latency measurements saved to: /tmp/hft-validation-1762180433-tokyo/latencies.txt
+Statistics:
+{
+    "count": 100,
+    "min": 59.3,
+    "max": 68.34,
+    "mean": 62.44,
+    "median": 62.07,
+    "p95": 66.21,
+    "p99": 68.34
+}

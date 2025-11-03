@@ -1,0 +1,12 @@
+{
+  "ip": "57.180.173.66",
+  "hostname": "ec2-57-180-173-66.ap-northeast-1.compute.amazonaws.com",
+  "city": "Tokyo",
+  "region": "Tokyo",
+  "country": "JP",
+  "loc": "35.6895,139.6917",
+  "org": "AS16509 Amazon.com, Inc.",
+  "postal": "101-8656",
+  "timezone": "Asia/Tokyo",
+  "readme": "https://ipinfo.io/missingauth"
+}
