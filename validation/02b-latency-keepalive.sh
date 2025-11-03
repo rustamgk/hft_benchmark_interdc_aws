@@ -7,7 +7,7 @@ ITERATIONS=${2:-100}
 TARGET_HOST=${RESOLVE_HOST:-api.binance.com}
 TARGET_URL="https://$TARGET_HOST/api/v3/time"
 
-echo "Measuring keepalive latency ($ITERATIONS requests) to $TARGET_HOST ${RESOLVE_IP:+(pinned to $RESOLVE_IP)}..."
+echo "Measuring keepalive latency ($ITERATIONS requests, excluding first cold-start) to $TARGET_HOST ${RESOLVE_IP:+(pinned to $RESOLVE_IP)}..."
 
 LAT_FILE="$RESULTS_DIR/latencies_keepalive.txt"
 CSV_FILE="$RESULTS_DIR/latencies_keepalive_breakdown.csv"
@@ -34,7 +34,8 @@ OUTPUT=$("${CMD[@]}")
 echo "$OUTPUT" >> "$CSV_FILE"
 
 # Extract total times into latencies_keepalive.txt
-echo "$OUTPUT" | awk -F, '{print $5}' >> "$LAT_FILE"
+# Skip the first request (cold start/connection establishment)
+echo "$OUTPUT" | awk -F, 'NR > 1 {print $5}' >> "$LAT_FILE"
 
 echo "Latency (keepalive) saved to: $LAT_FILE"
 python3 "$(dirname "$0")/analyze_latency.py" "$LAT_FILE" > "$RESULTS_DIR/latency_stats_keepalive.json"

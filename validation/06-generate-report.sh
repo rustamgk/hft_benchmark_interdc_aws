@@ -32,6 +32,7 @@ if [ -f "$RESULTS_DIR/latency_stats_keepalive.json" ]; then
     cat >> "$REPORT" << 'EOF'
 
 Warm (connection reuse / keepalive) Latency Statistics (milliseconds):
+Note: Excludes first request (cold-start/connection establishment overhead)
 EOF
     cat "$RESULTS_DIR/latency_stats_keepalive.json" | jq '.' | sed 's/^/  /' >> "$REPORT"
 fi

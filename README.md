@@ -8,7 +8,7 @@ These are the latest warm (connection reuse) results from the validation suite. 
 |--------------------------|---------------|----------------|---------------|---------------|---------------|-------------------------------------------------|
 | Direct SG baseline       | Singapore, SG | 54.254.160.207 | 72.09         | 74.67         | 151.64        | `validation/results/20251022-020550-baseline/` |
 | Via Tokyo (pinned POP)   | Tokyo, JP     | 35.76.36.216   | 76.05         | 79.57         | 278.12        | `validation/results/20251022-020050/`          |
-| Tokyo vantage (direct)   | Tokyo, JP     | 35.76.36.216   | 5.48          | 6.40          | 64.58         | `validation/results/20251022-022358-tokyo/`    |
+| Tokyo vantage (direct)   | Tokyo, JP     | 35.76.36.216   | 5.48          | 6.40          | 6.58         | `validation/results/20251022-022358-tokyo/`    |
 
 Notes
 - “Warm” reflects typical app behavior with connection reuse (KEEPALIVE=1). Medians for Singapore-origin scenarios converge near overlay RTT + server time (~72–76 ms).
